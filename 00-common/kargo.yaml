@@ -3,6 +3,8 @@ kind: Secret
 metadata:
   name: artifactory-receiver
   namespace: kargo-cluster-secrets
+  labels:
+    kargo.akuity.io/cred-type: generic
 data:
   secret-token: c295bGVudCBncmVlbiBpcyBwZW9wbGU=
 ---
@@ -11,6 +13,8 @@ kind: Secret
 metadata:
   name: azure-receiver
   namespace: kargo-cluster-secrets
+  labels:
+    kargo.akuity.io/cred-type: generic
 data:
   secret: c295bGVudCBncmVlbiBpcyBwZW9wbGU=
 ---
@@ -19,6 +23,8 @@ kind: Secret
 metadata:
   name: bitbucket-receiver
   namespace: kargo-cluster-secrets
+  labels:
+    kargo.akuity.io/cred-type: generic
 data:
   secret: c295bGVudCBncmVlbiBpcyBwZW9wbGU=
 ---
@@ -27,6 +33,18 @@ kind: Secret
 metadata:
   name: dockerhub-receiver
   namespace: kargo-cluster-secrets
+  labels:
+    kargo.akuity.io/cred-type: generic
+data:
+  secret: c295bGVudCBncmVlbiBpcyBwZW9wbGU=
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: generic-receiver
+  namespace: kargo-cluster-secrets
+  labels:
+    kargo.akuity.io/cred-type: generic
 data:
   secret: c295bGVudCBncmVlbiBpcyBwZW9wbGU=
 ---
@@ -35,6 +53,8 @@ kind: Secret
 metadata:
   name: github-receiver
   namespace: kargo-cluster-secrets
+  labels:
+    kargo.akuity.io/cred-type: generic
 data:
   secret: c295bGVudCBncmVlbiBpcyBwZW9wbGU=
 ---
@@ -43,6 +63,8 @@ kind: Secret
 metadata:
   name: gitlab-receiver
   namespace: kargo-cluster-secrets
+  labels:
+    kargo.akuity.io/cred-type: generic
 data:
   secret-token: c295bGVudCBncmVlbiBpcyBwZW9wbGU=
 ---
@@ -51,6 +73,8 @@ kind: Secret
 metadata:
   name: harbor-receiver
   namespace: kargo-cluster-secrets
+  labels:
+    kargo.akuity.io/cred-type: generic
 data:
   auth-header: c295bGVudCBncmVlbiBpcyBwZW9wbGU=
 ---
@@ -59,6 +83,8 @@ kind: Secret
 metadata:
   name: quay-receiver
   namespace: kargo-cluster-secrets
+  labels:
+    kargo.akuity.io/cred-type: generic
 data:
   secret: c295bGVudCBncmVlbiBpcyBwZW9wbGU=
 ---
@@ -84,6 +110,16 @@ spec:
     dockerhub:
       secretRef:
         name: dockerhub-receiver
+  - name: generic
+    generic:
+      secretRef:
+        name: generic-receiver
+      actions:
+      - action: Refresh
+        whenExpression: "request.header('X-Event-Type') == 'push'"
+        targetSelectionCriteria:
+        - kind: Warehouse
+          name: kargo-demo
   - name: github
     github:
       secretRef:
@@ -102,16 +138,11 @@ spec:
         name: quay-receiver
 ---
 apiVersion: v1
-kind: Namespace
-metadata:
-  name: kargo-shared-credentials
----
-apiVersion: v1
 kind: Secret
 type: Opaque
 metadata:
   name: github
-  namespace: kargo-shared-credentials
+  namespace: kargo-shared-resources
   labels:
     kargo.akuity.io/cred-type: git
 stringData:
@@ -119,17 +150,3 @@ stringData:
   repoURLIsRegex: "true"
   username: <github-username>
   password: <github-pat>
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: RoleBinding
-metadata:
-    name: kargo-controller-read-secrets
-    namespace: kargo-shared-credentials
-subjects:
-    - kind: ServiceAccount
-      name: kargo-controller
-      namespace: kargo
-roleRef:
-    kind: ClusterRole
-    name: kargo-controller-read-secrets
-    apiGroup: rbac.authorization.k8s.io
