@@ -1,0 +1,6 @@
+[package]
+name = "my-app"
+version = "2.0.0"
+
+[dependencies]
+nginx = "1.24.0"
