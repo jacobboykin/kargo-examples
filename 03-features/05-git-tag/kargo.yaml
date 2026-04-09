@@ -1,0 +1,103 @@
+apiVersion: kargo.akuity.io/v1alpha1
+kind: Project
+metadata:
+  name: kargo-demo-19
+---
+apiVersion: kargo.akuity.io/v1alpha1
+kind: ProjectConfig
+metadata:
+  name: kargo-demo-19
+  namespace: kargo-demo-19
+spec:
+  promotionPolicies:
+  - stageSelector:
+      name: test
+    autoPromotionEnabled: true
+
+---
+apiVersion: v1
+kind: Secret
+type: Opaque
+metadata:
+  name: git-creds
+  namespace: kargo-demo-19
+  labels:
+    kargo.akuity.io/cred-type: git
+stringData:
+  repoURL: https://github.com/<github-username>/kargo-demo-gitops.git
+  username: <github-username>
+  password: <github-pat>
+
+---
+apiVersion: kargo.akuity.io/v1alpha1
+kind: Warehouse
+metadata:
+  name: kargo-demo
+  namespace: kargo-demo-19
+spec:
+  subscriptions:
+  - git:
+      repoURL: https://github.com/<github-username>/kargo-demo-gitops.git
+      branch: main
+
+---
+apiVersion: kargo.akuity.io/v1alpha1
+kind: Stage
+metadata:
+  name: test
+  namespace: kargo-demo-19
+spec:
+  requestedFreight:
+  - origin:
+      kind: Warehouse
+      name: kargo-demo
+    sources:
+      direct: true
+  promotionTemplate:
+    spec:
+      vars:
+      - name: gitRepo
+        value: https://github.com/<github-username>/kargo-demo-gitops.git
+      steps:
+      - uses: git-clone
+        config:
+          repoURL: ${{ vars.gitRepo }}
+          checkout:
+          - commit: ${{ commitFrom(vars.gitRepo).ID }}
+            path: ./repo
+      - uses: git-tag
+        config:
+          path: ./repo
+          tag: release-${{ ctx.stage }}-${{ commitFrom(vars.gitRepo).ID }}
+          message: "Tagged by Kargo promotion for stage ${{ ctx.stage }}"
+      - uses: git-push
+        config:
+          path: ./repo
+          tag: release-${{ ctx.stage }}-${{ commitFrom(vars.gitRepo).ID }}
+  verification:
+    analysisTemplates:
+    - name: kargo-demo
+
+---
+apiVersion: argoproj.io/v1alpha1
+kind: AnalysisTemplate
+metadata:
+  name: kargo-demo
+  namespace: kargo-demo-19
+spec:
+  metrics:
+  - name: test
+    provider:
+      job:
+        metadata:
+        spec:
+          backoffLimit: 1
+          template:
+            spec:
+              containers:
+              - name: test
+                image: alpine:latest
+                command:
+                - sleep
+                - "20"
+              restartPolicy: Never

@@ -1,0 +1,98 @@
+apiVersion: kargo.akuity.io/v1alpha1
+kind: Project
+metadata:
+  name: kargo-demo-20
+---
+apiVersion: kargo.akuity.io/v1alpha1
+kind: ProjectConfig
+metadata:
+  name: kargo-demo-20
+  namespace: kargo-demo-20
+spec:
+  promotionPolicies:
+  - stageSelector:
+      name: test
+    autoPromotionEnabled: true
+---
+apiVersion: kargo.akuity.io/v1alpha1
+kind: Warehouse
+metadata:
+  name: kargo-demo
+  namespace: kargo-demo-20
+spec:
+  subscriptions:
+  - git:
+      repoURL: https://github.com/<github-username>/kargo-demo-gitops.git
+      branch: kustomize
+---
+apiVersion: kargo.akuity.io/v1alpha1
+kind: PromotionTask
+metadata:
+  name: promo-process
+  namespace: kargo-demo-20
+spec:
+  vars:
+  - name: gitRepo
+    value: https://github.com/<github-username>/kargo-demo-gitops.git
+  steps:
+  # Update the ArgoCD app's target revision to trigger a sync via auto-sync
+  - uses: argocd-update
+    config:
+      apps:
+      - name: ${{ ctx.project }}-${{ ctx.stage }}
+        sources:
+        - repoURL: ${{ vars.gitRepo }}
+          desiredRevision: ${{ commitFrom(vars.gitRepo).ID }}
+          updateTargetRevision: true
+  # Wait for the app to reach Healthy status after the sync completes.
+  # This exercises argocd-wait as a separate gate from argocd-update.
+  - uses: argocd-wait
+    config:
+      apps:
+      - name: ${{ ctx.project }}-${{ ctx.stage }}
+        waitFor:
+        - health
+---
+apiVersion: kargo.akuity.io/v1alpha1
+kind: Stage
+metadata:
+  name: test
+  namespace: kargo-demo-20
+spec:
+  requestedFreight:
+  - origin:
+      kind: Warehouse
+      name: kargo-demo
+    sources:
+      direct: true
+  promotionTemplate:
+    spec:
+      steps:
+      - task:
+          name: promo-process
+  verification:
+    analysisTemplates:
+    - name: kargo-demo
+---
+apiVersion: argoproj.io/v1alpha1
+kind: AnalysisTemplate
+metadata:
+  name: kargo-demo
+  namespace: kargo-demo-20
+spec:
+  metrics:
+  - name: test
+    provider:
+      job:
+        metadata:
+        spec:
+          backoffLimit: 1
+          template:
+            spec:
+              containers:
+              - name: test
+                image: alpine:latest
+                command:
+                - sleep
+                - "20"
+              restartPolicy: Never
